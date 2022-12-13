@@ -27,11 +27,19 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .defaultSuccessUrl("/")
                 .permitAll()
                 .and()
+
+                // 로그아웃 기능
                 .logout()
                 .logoutRequestMatcher(new AntPathRequestMatcher("/logout")) // default
                 .logoutSuccessUrl("/")
                 .invalidateHttpSession(true) // default
-                .clearAuthentication(true); // default가
+                .clearAuthentication(true) // default
+                .and()
+
+                // 자동 로그인
+                .rememberMe()
+                .rememberMeParameter("remember-me")
+                .tokenValiditySeconds(300);
     }
 
     @Override
