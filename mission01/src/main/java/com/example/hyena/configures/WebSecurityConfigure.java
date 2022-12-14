@@ -39,7 +39,13 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 // 자동 로그인
                 .rememberMe()
                 .rememberMeParameter("remember-me")
-                .tokenValiditySeconds(300);
+                .tokenValiditySeconds(300)
+                .and()
+
+                // https
+                .requiresChannel()
+                // 모두 https가 필요하다.
+                .anyRequest().requiresSecure();
     }
 
     @Override
