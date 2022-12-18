@@ -42,10 +42,20 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .tokenValiditySeconds(300)
                 .and()
 
-                // https
+                /**
+                 * HTTP 요청을 HTTPS 요청으로 리다이렉트 한다.
+                 */
                 .requiresChannel()
                 // 모두 https가 필요하다.
-                .anyRequest().requiresSecure();
+                .anyRequest().requiresSecure()
+                .and()
+
+                /**
+                 * 익명 권한을 커스텀한다.
+                 */
+                .anonymous()
+                .principal("thisIsAnonymousUser")
+                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN");
     }
 
     @Override
