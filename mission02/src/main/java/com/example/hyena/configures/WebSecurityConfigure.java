@@ -1,16 +1,27 @@
 package com.example.hyena.configures;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import javax.servlet.http.HttpServletResponse;
+
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
+
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @Override
     public void configure(WebSecurity web) {
@@ -21,6 +32,7 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/me").hasAnyRole("USER", "ADMIN")
+                .antMatchers("/admin").access("hasRole('Admin') and isFullyAuthenticated()")
                 .anyRequest().permitAll()
                 .and()
                 .formLogin()
@@ -55,7 +67,14 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                  */
                 .anonymous()
                 .principal("thisIsAnonymousUser")
-                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN");
+                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN")
+
+                /**
+                 * AccessDeniedHandler 추가
+                 */
+                .and()
+                .exceptionHandling()
+                .accessDeniedHandler(accessDeniedHandler());
     }
 
     @Override
@@ -64,5 +83,19 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .withUser("user").password("{noop}user123").roles("USER")
                 .and()
                 .withUser("admin").password("{noop}admin").roles("ADMIN");
+    }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, e) -> {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            Object principal = authentication != null ? authentication.getPrincipal() : null;
+            logger.warn("{} is denied", principal, e);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("text/plain");
+            response.getWriter().write("## ACCESS DENIED !! ##");
+            response.getWriter().flush();
+            response.getWriter().close();
+        };
     }
 }
