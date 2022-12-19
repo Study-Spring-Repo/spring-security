@@ -16,7 +16,6 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import javax.servlet.http.HttpServletResponse;
 
-
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
@@ -37,6 +36,10 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .and()
                 .formLogin()
                 .defaultSuccessUrl("/")
+
+                // front component id 이름
+                .usernameParameter("my-username")
+                .passwordParameter("my-pass")
                 .permitAll()
                 .and()
 
