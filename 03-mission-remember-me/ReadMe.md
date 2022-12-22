@@ -1,65 +1,94 @@
-# 05 - Security Authentication
+# 03-mission-remember-me
 
-> ### 인증 (Authentication)
+> ### RememberMeAuthenticationFilter :: FILTER
 
-<img alt="img_2.png" height="900" src="image/img_2.png" width="1000"/>
-
-- `Authentication`
-  - 사용자가 주장하는 본인이 맞는지 확인하는 절차를 의미한다.
-  
-
-- `DefaultLoginPageGeneratingFilter`
-  - HTTP GET 요청에 대해 디폴트 로그인 페이지를 생성해주는 필터
-  - 로그인 페이지 커스텀 구현이 가능하다.
-
-
-> ### `AbstractAuthenticationProcessingFilter`
-- `AbstractAuthenticationProcessingFilter`
-  - 대표적인 구현체 : `UsernamePasswordAuthenticationFilter`
-    - 사용자 인증을 처리하기 위한 필터
-    - `Credential` : 사용자 인증을 위한 정보를 취합한다.
-      - `UsernamePasswordAuthenticationFilter` 구현에서는 로그인 아이디/비밀번호를 취합한다.
-    - `Authentication` : 객체를 생성한다.
-      - `Authentication` 인터페이스 구현체중 하나인 `UsernamePasswordAuthenticationToken` 객체를 생성한다.
-
-<img alt="img.png" height="800" src="image/img.png" width="700"/>
-
-> ### `AuthenticationManager`
-  - 인증이 완료되지 않은 `Authentication` 객체는 `AuthenticationManager` 객체를 반환한다.
-  - 사용자 인증을 위한 API를 제공한다.
+- 인증되지 않은 사용자의 HTTP 요청이 `remember-me 쿠키`를 갖고 있다면, 사용자를 자동으로 인증 처리한다.
+  - key - `remember-me`
+    - 쿠키에대한 고유 식별 키
+      - 미입력시 랜덤 텍스트
+  - `rememberMeParameter`
+    - remember-me 쿠키 파라미터명 (default : remember-me)
+  - `tokenValiditySSeconds`
+    - 쿠키 만료 시간 (초단위)
+  - `alwaysRemember`
+    - 항상 remember-me를 활성화 시킨다. (default : false)
 
 
-> ### `Authentication`
-  - 인증이 정상적으로 완료됐을 경우 새로운 `Authentication`을 반환한다.
-  - 새로운 `Authentication` 객체는 인증이 완료된 상태이다.
-  - `GrantedAuthority` 목록을 포함하고 있다.
+WebSecurityConfig (Remember-Me 설정 예시)
 
-
-> ### `ProviderManager`
-- `ProviderManager`
-  - `AuthenticationManger`의 기본 구현체 클래스이다.
-  - 1개 이상의 `AuthenticationProvider` 인터페이스 구현체로 구성된다.
-  - `AuthenticationProvider` 인터페이스 구현체 중 하나를 결정하여 실제 인증을 처리한다.
-
-
-> ### `AuthenticationProvider` 
-- `AuthenticationProvider`
-  - 객체는 true를 반환하는 `supports(Class<?> authentication)` 메서드를 통해 `Authentication`에 대해서 인증을 처리한다
-
-<img alt="img_1.png" height="300" src="image/img_1.png" width="500"/>
-
-  
 ```java
-public interface AuthenticationProvider {
-    Authentication authenticate(Authentication authentication) throws AuthenticationException;
-    boolean supports(Class<?> authentication);
-}
+@Configuration
+@EnableWebSecurity
+public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
-public class ProviderManager implements AuthenticationManager, MessageSourceAware, InitializingBean {
+  @Override
+  protected void configure(HttpSecurity http) throws Exception {
+    http
+            // ... 생략 ...
+            .rememberMe()
+            .key("my-remember-me")
+            .rememberMeParameter("remember-me")
+            .tokenValiditySeconds(300)
+            .alwaysRemember(false)
+            .and()
+    // ... 생략 ...
 
-    private List<AuthenticationProvider> providers = Collections.emptyList();
-    
-    ...
+  }
 }
 ```
 
+> ### RememberMeServices :: SERVICES
+
+- 실제 사용자 인증은 RememberMeServices 인터페이스 구현체를 통해 처리된다.
+  - `TokenBasedRememberMeServices`
+    - MD5 해시 알고리즘 기반 쿠키 검증
+  - `PersistentTokenBasedRememberMeServices`
+    - 외부 데이터베이스에서 인증에 필요한 데이터를 가져오고 검증한다.
+    - 사용자마다 고유의 Series 식별자가 생성된다.
+    - 인증시 매번 갱신되는 임의의 토큰 값을 사용한다.
+      - 높은 보안성을 제공한다.
+
+
+> ### RememberMeAuthenticationToken :: TOKEN
+
+- remember-me 기반 `Authentication` 인터페이스 구현체
+- `RememberMeAuthenticationToken` 객체는 언제나 인증이 완료된 상태로 존재한다.
+
+> ### RememberMeAuthenticationProvider :: PROVIDER
+
+- `RememberMeAuthenticationProvider`
+  - `RememberMeAuthenticationToken` 기반 인증 처리를 위한 `AuthenticationProvider`
+  - 앞서 remember-me 설정 시 입력한 key 값을 검증한다.
+
+
+RememberMeAuthenticationProvider
+
+```java
+@Override
+public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+	if (!supports(authentication.getClass())) {
+		return null;
+	}
+	if (this.key.hashCode() != ((RememberMeAuthenticationToken) authentication).getKeyHash()) {
+		throw new BadCredentialsException(this.messages.getMessage("RememberMeAuthenticationProvider.incorrectKey",
+				"The presented RememberMeAuthenticationToken does not contain the expected key"));
+	}
+	return authentication;
+}
+```
+
+> ### 명시적인 로그인 아이디/비밀번호 기반 인증 사용, 권한 구분
+
+- **"remember-me 인증 기반"과 "로그인 아이디/비밀번호 기반 인증" 결과가 다르다.**
+  - remember-me 기반 인증 결과
+    - `RememberMeAuthenticationToken`
+  - 로그인 아이디/비밀번호 기반 인증 결과
+    - `UsernamePasswordAuthenticationToken`
+
+
+- remember-me 기반 인증은 로그인 기반 인증보다 보안상 약한 인증이다.
+- 동일하게 인증된 사용자라해도 권한을 분리할 수 있다.
+
+
+- `isFullyAuthenticated`
+  - 명시적인 로그인 아이디/비밀번호 기반으로 인증된 사용자만 접근 가능
