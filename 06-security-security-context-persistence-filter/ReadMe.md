@@ -1,94 +1,86 @@
-# 03-mission-remember-me
+# 세션 처리
 
-> ### RememberMeAuthenticationFilter :: FILTER
+> ### SecurityContextPersistenceFilter
 
-- 인증되지 않은 사용자의 HTTP 요청이 `remember-me 쿠키`를 갖고 있다면, 사용자를 자동으로 인증 처리한다.
-  - key - `remember-me`
-    - 쿠키에대한 고유 식별 키
-      - 미입력시 랜덤 텍스트
-  - `rememberMeParameter`
-    - remember-me 쿠키 파라미터명 (default : remember-me)
-  - `tokenValiditySSeconds`
-    - 쿠키 만료 시간 (초단위)
-  - `alwaysRemember`
-    - 항상 remember-me를 활성화 시킨다. (default : false)
+- `SecurityContextRepository`
+  - SecurityContextRepository 인터페이스 구현체를 통해 사용자의 `SecurityContext`를 가져오거나 갱신한다.
+    - 인증 관련 필터 중 가장 최상단에 위치한다.
+      - 이미 인증된 사용자는 다시 로그인할 필요없게 처리해준다.
 
 
-WebSecurityConfig (Remember-Me 설정 예시)
-
-```java
-@Configuration
-@EnableWebSecurity
-public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
-
-  @Override
-  protected void configure(HttpSecurity http) throws Exception {
-    http
-            // ... 생략 ...
-            .rememberMe()
-            .key("my-remember-me")
-            .rememberMeParameter("remember-me")
-            .tokenValiditySeconds(300)
-            .alwaysRemember(false)
-            .and()
-    // ... 생략 ...
-
-  }
-}
-```
-
-> ### RememberMeServices :: SERVICES
-
-- 실제 사용자 인증은 RememberMeServices 인터페이스 구현체를 통해 처리된다.
-  - `TokenBasedRememberMeServices`
-    - MD5 해시 알고리즘 기반 쿠키 검증
-  - `PersistentTokenBasedRememberMeServices`
-    - 외부 데이터베이스에서 인증에 필요한 데이터를 가져오고 검증한다.
-    - 사용자마다 고유의 Series 식별자가 생성된다.
-    - 인증시 매번 갱신되는 임의의 토큰 값을 사용한다.
-      - 높은 보안성을 제공한다.
+- SecurityContextRepository 인터페이스 기본 구현
+  - `HttpSessionSecurityContextRepository`
+    - Session을 이용한다.
 
 
-> ### RememberMeAuthenticationToken :: TOKEN
+> ### SessionManagementFilter
 
-- remember-me 기반 `Authentication` 인터페이스 구현체
-- `RememberMeAuthenticationToken` 객체는 언제나 인증이 완료된 상태로 존재한다.
-
-> ### RememberMeAuthenticationProvider :: PROVIDER
-
-- `RememberMeAuthenticationProvider`
-  - `RememberMeAuthenticationToken` 기반 인증 처리를 위한 `AuthenticationProvider`
-  - 앞서 remember-me 설정 시 입력한 key 값을 검증한다.
+- 세션 고정 보호 (session-fixation protection)
+  - session-fixation attack
+    - 세션 하이재킹 기법
+    - 정상 사용자의 세션을 탈취하려 인증을 우회하는 기법
 
 
-RememberMeAuthenticationProvider
+- Spring Security가 제공하는 4가지 설정 옵션
+  - `none`
+    - 아무것도 하지 않는다.
+    - 세션을 그대로 유지한다.
+  - `newSession`
+    - 새로운 세션을 만든다,.
+    - 기존 데이터는 복제하지 않는다.
+  - `migrateSession`
+    - 새로운 세션을 만든다.
+    - 데이터를 모두 복제한다.
+  - `changeSession`
+    - 새로운 세션을 만들지 않는다.
+    - session-fixation 공격을 방어한다.
+
+
+- 유효하지 않은 세션 감지 시 지정된 URL로 리다이렉트 시킨다.
+
+
+- 세션 생성 전략 설정
+  - `IF_REQUIRED`
+    - 필요 시 생성한다. (default)
+  - `NEVER`
+    - Spring Security에서 세션을 생성하지 않는다.
+    - 세션이 존재하면 사용은 한다.
+  - `STATELESS`
+    - 세션을 완전히 사용하지 않는다.
+    - JWT 인증이 사용되는 REST API 서비스에 적합하다.
+  - `ALWAYS`
+    - 항상 세션을 사용한다.
+
+
+- 동일 사용자 중복 로그인 감지 및 처리
+  - `maximumSessions`
+    - 동일 사용자의 최대 동시 세션 갯수
+  - `maxSessionsPreventsLogin`
+    - 최대 갯수를 초과하게 될 경우 인증 시도 차단 여부 (default : false)
 
 ```java
 @Override
-public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-	if (!supports(authentication.getClass())) {
-		return null;
-	}
-	if (this.key.hashCode() != ((RememberMeAuthenticationToken) authentication).getKeyHash()) {
-		throw new BadCredentialsException(this.messages.getMessage("RememberMeAuthenticationProvider.incorrectKey",
-				"The presented RememberMeAuthenticationToken does not contain the expected key"));
-	}
-	return authentication;
+protected void configure(HttpSecurity http) throws Exception {
+  http
+    /**
+     * 세션 관련 설정
+     */
+    .sessionManagement()
+      .sessionFixation().changeSessionId()
+      .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+      .invalidSessionUrl("/")
+      .maximumSessions(1)
+	      .maxSessionsPreventsLogin(false)
+				.and()
+      .and()
+  ;
 }
 ```
 
-> ### 명시적인 로그인 아이디/비밀번호 기반 인증 사용, 권한 구분
+- `AbstractAuthenticationProcessingFilter`
+  - `SessionManagementFilter`와 동일한 세션 고정 보호, 최대 로그인 세션 제어를 수행한다.
+  - AbstractAuthenticationProcessingFilter와 SessionManagementFilter는 `SessionAuthenticationStrategy`객체를 공유한다.
+  - AbstractAuthenticationProcessingFilter 구현
+    - 인증 처리 완료 후, SessionAuthenticationStrategy 객체를 통한 필요한 처리를 수행한다.
 
-- **"remember-me 인증 기반"과 "로그인 아이디/비밀번호 기반 인증" 결과가 다르다.**
-  - remember-me 기반 인증 결과
-    - `RememberMeAuthenticationToken`
-  - 로그인 아이디/비밀번호 기반 인증 결과
-    - `UsernamePasswordAuthenticationToken`
-
-
-- remember-me 기반 인증은 로그인 기반 인증보다 보안상 약한 인증이다.
-- 동일하게 인증된 사용자라해도 권한을 분리할 수 있다.
-
-
-- `isFullyAuthenticated`
-  - 명시적인 로그인 아이디/비밀번호 기반으로 인증된 사용자만 접근 가능
+![img.png](image/img.png)
