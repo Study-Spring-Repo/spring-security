@@ -71,14 +71,14 @@ int vote(Authentication authentication, S object, Collection<ConfigAttribute> at
     - 판단 보류
 
 
-- `WebExpressionVoter` 구현체
+> ### `WebExpressionVoter` 구현체
   - SpEL 표현식을 사용해 접근 승인 여부에 대한 규칙을 지정한다.
   - SpEL 표현식 처리를 위해 
     - `DefaultWebSecurityExpressionHandler`
     - `WebSecurityExpressionRoot` 구현에 의존한다.
 
 
-- DefaultWebSecurityExpressionHandler
-  - createSecurityExpressionRoot() 메서드에서 WebSecurityExpressionRoot 객체를 생성한다.
-- WebSecurityExpressionRoot
-  - SpEL 표현식에서 사용할 수 있는 다양한 메서드를 제공한다.
+- `DefaultWebSecurityExpressionHandler`
+  - createSecurityExpressionRoot() 메서드에서 `WebSecurityExpressionRoot` 객체를 생성한다.
+- `WebSecurityExpressionRoot`
+- SpEL 표현식에서 사용할 수 있는 다양한 메서드 제공
