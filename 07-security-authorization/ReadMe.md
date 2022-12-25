@@ -1,86 +1,84 @@
-# 세션 처리
+# Authorization 처리
 
-> ### SecurityContextPersistenceFilter
+> ### Authorization
 
-- `SecurityContextRepository`
-  - SecurityContextRepository 인터페이스 구현체를 통해 사용자의 `SecurityContext`를 가져오거나 갱신한다.
-    - 인증 관련 필터 중 가장 최상단에 위치한다.
-      - 이미 인증된 사용자는 다시 로그인할 필요없게 처리해준다.
+- 인가 (`Authorization`)
+  - 권한이 부여된 사용자들만 특정 기능, 데이터 접근에 허용하는 기능
 
 
-- SecurityContextRepository 인터페이스 기본 구현
-  - `HttpSessionSecurityContextRepository`
-    - Session을 이용한다.
+- 인가 처리
+  - 인증된 사용자와 권한을 매핑해야 한다.
+    - Spring Security
+      - ROLE_USER
+      - ROLE_ADMIN
+      - ROLE_ANONYMOUS
+  - 보호되는 리소스에 대한 권한을 확인해야 한다.
+
+    ![img.png](image/img.png)
 
 
-> ### SessionManagementFilter
+> ### FilterSecurityInterceptor
 
-- 세션 고정 보호 (session-fixation protection)
-  - session-fixation attack
-    - 세션 하이재킹 기법
-    - 정상 사용자의 세션을 탈취하려 인증을 우회하는 기법
-
-
-- Spring Security가 제공하는 4가지 설정 옵션
-  - `none`
-    - 아무것도 하지 않는다.
-    - 세션을 그대로 유지한다.
-  - `newSession`
-    - 새로운 세션을 만든다,.
-    - 기존 데이터는 복제하지 않는다.
-  - `migrateSession`
-    - 새로운 세션을 만든다.
-    - 데이터를 모두 복제한다.
-  - `changeSession`
-    - 새로운 세션을 만들지 않는다.
-    - session-fixation 공격을 방어한다.
+- 필터 체인 상에서 가장 마지막에 위치한다.
+- 사용자가 갖고 있는 권한과 리소스에서 **요구하는 권한을 취합**하여 접근 허용을 결정한다.
+  - `AccessDecisionManager` 인터페이스 구현체
+    - 접근 허용 판단 여부가 이루어진다.
 
 
-- 유효하지 않은 세션 감지 시 지정된 URL로 리다이렉트 시킨다.
+- `FilterSecurityInterceptor` 필터가 호출되는 시점
+  - 해당 시점에서 사용자는 인증이 완료된다.
+- `Authentication` 인터페이스의 `getAuthorities()` 메서드
+  - 인증된 사용자 권한 목록을 가져온다.
+  - 익명 사용자도 인증이 완료된 것으로 간주한다.
+    - ROLE_ANONYMOUS
+- `SecurityMetadataSource` 인터페이스
+  - `ConfigAttribute` 타입
+  - 보호되는 리소스에서 요구하는 권한 정보를 해당 타입으로 가져온다.
+
+![img_1.png](image/img_1.png)
 
 
-- 세션 생성 전략 설정
-  - `IF_REQUIRED`
-    - 필요 시 생성한다. (default)
-  - `NEVER`
-    - Spring Security에서 세션을 생성하지 않는다.
-    - 세션이 존재하면 사용은 한다.
-  - `STATELESS`
-    - 세션을 완전히 사용하지 않는다.
-    - JWT 인증이 사용되는 REST API 서비스에 적합하다.
-  - `ALWAYS`
-    - 항상 세션을 사용한다.
+> ### AccessDecisionManager
 
+- `AccessDecisionManager` 인터페이스
+  - 사용자가 갖고 있는 권한과 리소스에서 요구하는 권한을 확인한다.
+  - 사용자가 적절한 권한을 갖고 있지 않다면 접근 거부 처리한다.
+  - `AccessDecisionVoter` 목록을 가지고 있다.
+  - AccessDecisionVoter들의 투표(vote) 결과를 취합하고, 접근 승인 여부를 결정하는 3가지 구현체를 제공한다.
+    - `AffirmativeBased`
+      - AccessDecisionVoter가 승인하면 이전에 거부된 내용과 관계없이 접근이 승인된다. (default)
+    - `ConsensusBased`
+      - 다수의 AccessDecisionVoter가 승인하면 접근이 승인된다.
+    - `UnanimousBased`
+      - 모든 AccessDecisionVoter가 만장일치로 승인해야 접근이 승인된다.
 
-- 동일 사용자 중복 로그인 감지 및 처리
-  - `maximumSessions`
-    - 동일 사용자의 최대 동시 세션 갯수
-  - `maxSessionsPreventsLogin`
-    - 최대 갯수를 초과하게 될 경우 인증 시도 차단 여부 (default : false)
+> ### AccessDecisionVoter
 
+- `AccessDecisionVoter` 인터페이스
+  - 각각의 AccessDecisionVoter는 접근 승인, 거절, 보류를 판단한다.
 ```java
-@Override
-protected void configure(HttpSecurity http) throws Exception {
-  http
-    /**
-     * 세션 관련 설정
-     */
-    .sessionManagement()
-      .sessionFixation().changeSessionId()
-      .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-      .invalidSessionUrl("/")
-      .maximumSessions(1)
-	      .maxSessionsPreventsLogin(false)
-				.and()
-      .and()
-  ;
-}
+int ACCESS_GRANTED = 1;
+int ACCESS_ABSTAIN = 0;
+int ACCESS_DENIED = -1;
+
+int vote(Authentication authentication, S object, Collection<ConfigAttribute> attributes);
 ```
+  - ACCESS_GRANTED
+    - 접근 승인
+  - ACCESS_DENIED
+    - 접근 거부
+  - ACCESS_ABSTAIN
+    - 판단 보류
 
-- `AbstractAuthenticationProcessingFilter`
-  - `SessionManagementFilter`와 동일한 세션 고정 보호, 최대 로그인 세션 제어를 수행한다.
-  - AbstractAuthenticationProcessingFilter와 SessionManagementFilter는 `SessionAuthenticationStrategy`객체를 공유한다.
-  - AbstractAuthenticationProcessingFilter 구현
-    - 인증 처리 완료 후, SessionAuthenticationStrategy 객체를 통한 필요한 처리를 수행한다.
 
-![img.png](image/img.png)
+- `WebExpressionVoter` 구현체
+  - SpEL 표현식을 사용해 접근 승인 여부에 대한 규칙을 지정한다.
+  - SpEL 표현식 처리를 위해 
+    - `DefaultWebSecurityExpressionHandler`
+    - `WebSecurityExpressionRoot` 구현에 의존한다.
+
+
+- DefaultWebSecurityExpressionHandler
+  - createSecurityExpressionRoot() 메서드에서 WebSecurityExpressionRoot 객체를 생성한다.
+- WebSecurityExpressionRoot
+  - SpEL 표현식에서 사용할 수 있는 다양한 메서드를 제공한다.
