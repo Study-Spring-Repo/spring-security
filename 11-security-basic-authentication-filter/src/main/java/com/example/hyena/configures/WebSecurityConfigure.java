@@ -59,6 +59,9 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .permitAll()
                 .and()
 
+                .httpBasic()
+                .and()
+
                 // 로그아웃 기능
                 .logout()
                 .logoutRequestMatcher(new AntPathRequestMatcher("/logout")) // default
