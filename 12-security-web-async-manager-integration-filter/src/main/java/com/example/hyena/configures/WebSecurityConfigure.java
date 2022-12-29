@@ -29,6 +29,10 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
+    public WebSecurityConfigure() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+    }
+
     @Override
     public void configure(WebSecurity web) {
         web.ignoring().antMatchers("/assets/**");
