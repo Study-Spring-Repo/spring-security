@@ -1,59 +1,38 @@
-# Spring Security 인증 이벤트
+# HeaderWriterFilter
 
-- 인증 성공, 실패시 관련 ApplicationEvent가 발생한다.
-- 해당 event에 관심있는 Component는 event를 구독할 수 있다.
+> ### HeaderWriterFilter
 
+- 응답 헤더에 보안 관련 헤더 추가한다.
+  - 관련 이슈에 대해 기본적인 방어 기능은 완벽하지는 않다.
+  - 브라우저마다 다르게 동작할 수 있다.
 
-- 이벤트 모델 사용시 주의점
-  - 스프링의 이벤트 모델은 동기적이다.
-  - 이벤트를 구독하는 리스너의 처리 지연은 발생시킨 요처의 응답 지연에 직접적인 영향을 미친다.
+> ### XContentTypeOptionsHeaderWriter
 
+- MIME sniffing 공격 방어
+  - 브라우저에서 `MIME sniffing`을 사용하여 `Request Content Type`을 추측할 수 있다.
+    - XSS 공격에 악용될 수 있다.
+  - 지정된 MIME 형식 이외의 다른 용도로 사용하는 것을 차단한다.
 
-- 이벤트 모델을 사용하는 이유 ?
-  - 이벤트 모델은 Component 간의 느슨한 결합을 유지하는데 도움을 준다.
+> ### XXssProtectionHeaderWriter
 
+- 브라우저에 내장된 XSS(Cross-Site Scripting) 필터 활성화
+  - XSS
+    - 웹 상에서 가장 기초적인 취약점 공격 방법의 일종이다. 
+      - 악의적인 사용자가 공격하려는 사이트에 스크립트를 넣는 기법이다.
+  - 일반적으로 브라우저에는 XSS 공격을 방어하는 필터링 기능이 있다.
+  - 해당 필터로 XSS 공격을 완벽하게 방어하지 못한다.
 
-> ### AuthenticationEventPublisher
+> ### CacheControlHeadersWriter
 
-- `AuthenticationEventPublisher`
-  - 인증 성공, 실패가 발생했을 때 이벤트를 전달하기 위한 Event Publisher Interface
-  - 기본 구현체로 `DefaultAuthenticationEventPublisher` 클래스가 사용된다.
+- 캐시를 사용하지 않도록 설정한다.
+- 브라우저 캐시 설정에 따라 사용자가 인증 후 방문한 페이지를 로그아웃한 후 캐시된 페이지를 악의적인 사용자가 볼 수 있다.
 
-```java
-public interface AuthenticationEventPublisher {
+> ### XFrameOptionsHeaderWriter
 
-	void publishAuthenticationSuccess(Authentication authentication);
+- `clickjacking` 공격 방어
+- 웹 사용자가 자신이 클릭하고 있다는 인지하는 것과 다른 어떤 것을 클릭하게 속이는 악의적인 기법
+- 보통 사용자의 인식 없이 실행될 수 있는 임베디드 코드, 스크립트 형태
 
-	void publishAuthenticationFailure(AuthenticationException exception, Authentication authentication);
+> ### HstsHeaderWriter
 
-}
-```
-
-
-> ### 이벤트 종류
-
-- `AuthenticationSuccessEvent`
-  - 로그인 성공 이벤트
-- `AbstractAuthenticationFailureEvent`
-  - 로그인 실패 이벤트
-  - 추상 클래스이다.
-    - 실패 이유마다 다양한 구체 클래스가 있다.
-      - BadCredentialsException / AuthenticationFailureBadCredentialsEvent
-      - UsernameNotFoundException / AuthenticationFailureBadCredentialsEvent
-      - AccountExpiredException / AuthenticationFailureExpiredEvent
-      - ProviderNotFoundException / AuthenticationFailureProviderNotFoundEvent
-      - DisabledException / AuthenticationFailureDisabledEvent
-      - LockedException / AuthenticationFailureLockedEvent
-      - AuthenticationServiceException / AuthenticationFailureServiceExceptionEvent
-      - CredentialsExpiredException / AuthenticationFailureCredentialsExpiredEvent
-      - InvalidBearerTokenException / AuthenticationFailureBadCredentialsEvent
-
-  
-> ### 이벤트 리스너
-
-- `@EventListener` 이용하여 리스너 등록
-- Spring 이벤트 모델은 동기적이다.
-  - 지연처리가 될 수 있다.
-  - 해결 방법
-    - `@EnableAsync`로 비동기 처리를 활성화한다.
-      - `@Async`을 사용해 이벤트 리스너를 비동기로 변경할 수 있다.
+- HTTP 대신 HTTPS만을 사용하여 통신해야함을 브라우저에 알린다.
