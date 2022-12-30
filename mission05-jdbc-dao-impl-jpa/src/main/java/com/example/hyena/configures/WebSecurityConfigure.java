@@ -1,29 +1,24 @@
 package com.example.hyena.configures;
 
+import com.example.hyena.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.AsyncTaskExecutor;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import javax.servlet.http.HttpServletResponse;
-import javax.sql.DataSource;
 
 @Configuration
 @EnableWebSecurity
@@ -31,51 +26,16 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    private DataSource dataSource;
+    private UserService userService;
 
     @Autowired
-    public void setDataSource(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public void setUserService(UserService userService) {
+        this.userService = userService;
     }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.jdbcAuthentication()
-                .dataSource(dataSource)
-                .usersByUsernameQuery("SELECT login_id, passwd, true FROM USERS WHERE login_id = ?")
-                .groupAuthoritiesByUsername(
-                        "SELECT u.login_id, g.name, p.name " +
-                                "FROM " +
-                                "users u JOIN groups g ON u.group_id = g.id " +
-                                "LEFT JOIN group_permission gp ON g.id = gp.group_id " +
-                                "JOIN permissions p ON p.id = gp.permission_id " +
-                                "WHERE " +
-                                "u.login_id = ?"
-                )
-                .getUserDetailsService()
-                .setEnableAuthorities(false);
-    }
-
-    @Bean
-    @Qualifier("myAsyncTaskExecutor")
-    public ThreadPoolTaskExecutor threadPoolTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
-        executor.setThreadNamePrefix("my-executor-");
-        return executor;
-    }
-
-    @Bean
-    @Qualifier("myAsyncTaskExecutor")
-    public DelegatingSecurityContextAsyncTaskExecutor taskExecutor(
-            @Qualifier("myAsyncTaskExecutor") AsyncTaskExecutor delegate
-    ) {
-        return new DelegatingSecurityContextAsyncTaskExecutor(delegate);
-    }
-
-    public WebSecurityConfigure() {
-        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+        auth.userDetailsService(userService);
     }
 
     @Override
@@ -97,10 +57,6 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .and()
                 .formLogin()
                 .defaultSuccessUrl("/")
-
-                // front component id 이름
-                .usernameParameter("my-username")
-                .passwordParameter("my-pass")
                 .permitAll()
                 .and()
 
@@ -130,29 +86,8 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .and()
 
                 /**
-                 * 세션 관리
-                 */
-                .sessionManagement()
-                .sessionFixation().changeSessionId()
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .invalidSessionUrl("/")
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(false)
-                .and()
-                .and()
-
-
-                /**
-                 * 익명 권한을 커스텀한다.
-                 */
-                .anonymous()
-                .principal("thisIsAnonymousUser")
-                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN")
-
-                /**
                  * AccessDeniedHandler 추가
                  */
-                .and()
                 .exceptionHandling()
                 .accessDeniedHandler(accessDeniedHandler());
     }
@@ -164,7 +99,7 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
             Object principal = authentication != null ? authentication.getPrincipal() : null;
             logger.warn("{} is denied", principal, e);
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("text/plain");
+            response.setContentType("text/plain;charset=UTF-8");
             response.getWriter().write("## ACCESS DENIED !! ##");
             response.getWriter().flush();
             response.getWriter().close();
