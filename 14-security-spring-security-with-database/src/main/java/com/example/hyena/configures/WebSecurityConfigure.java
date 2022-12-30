@@ -60,21 +60,12 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         web.ignoring().antMatchers("/assets/**");
     }
 
-    @Bean
-    public AccessDecisionManager accessDecisionManager() {
-        List<AccessDecisionVoter<?>> voters = new LinkedList<>();
-        voters.add(new WebExpressionVoter());
-        voters.add(new OddAdminVoter(new AntPathRequestMatcher("/admin")));
-        return new UnanimousBased(voters);
-    }
-
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/me").hasAnyRole("USER", "ADMIN")
                 .antMatchers("/admin").access("hasRole('Admin') and isFullyAuthenticated()")
                 .anyRequest().permitAll()
-                .accessDecisionManager(accessDecisionManager())
                 .and()
                 .formLogin()
                 .defaultSuccessUrl("/")
