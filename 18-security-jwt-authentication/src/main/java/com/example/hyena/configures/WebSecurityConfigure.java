@@ -2,12 +2,14 @@ package com.example.hyena.configures;
 
 import com.example.hyena.jwt.Jwt;
 import com.example.hyena.jwt.JwtAuthenticationFilter;
+import com.example.hyena.jwt.JwtAuthenticationProvider;
 import com.example.hyena.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
@@ -29,23 +31,10 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    private JwtConfigure jwtConfigure;
+    private final JwtConfigure jwtConfigure;
 
-    private UserService userService;
-
-    @Autowired
-    public void setJwtConfigure(JwtConfigure jwtConfigure) {
+    public WebSecurityConfigure(JwtConfigure jwtConfigure) {
         this.jwtConfigure = jwtConfigure;
-    }
-
-    @Autowired
-    public void setUserService(UserService userService) {
-        this.userService = userService;
-    }
-
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userService);
     }
 
     @Override
@@ -79,6 +68,22 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
             response.getWriter().flush();
             response.getWriter().close();
         };
+    }
+
+    @Bean
+    public JwtAuthenticationProvider jwtAuthenticationProvider(Jwt jwt, UserService userService) {
+        return new JwtAuthenticationProvider(jwt, userService);
+    }
+
+    @Autowired
+    public void configureAuthentication(AuthenticationManagerBuilder builder, JwtAuthenticationProvider provider) {
+        builder.authenticationProvider(provider);
+    }
+
+    @Bean
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
     }
 
     public JwtAuthenticationFilter jwtAuthenticationFilter() {

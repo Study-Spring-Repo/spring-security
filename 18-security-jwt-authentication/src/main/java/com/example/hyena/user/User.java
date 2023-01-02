@@ -1,5 +1,7 @@
 package com.example.hyena.user;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 import javax.persistence.*;
 
 @Entity
@@ -19,6 +21,12 @@ public class User {
     @ManyToOne(optional = false)
     @JoinColumn(name = "group_id")
     private Group group;
+
+    public void checkPassword(PasswordEncoder passwordEncoder, String credentials) {
+        if (!passwordEncoder.matches(credentials, passwd)) {
+            throw new IllegalArgumentException("Bad credentials");
+        }
+    }
 
     public Long getId() {
         return id;
