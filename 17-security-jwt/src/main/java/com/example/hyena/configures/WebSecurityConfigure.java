@@ -1,5 +1,7 @@
 package com.example.hyena.configures;
 
+import com.example.hyena.jwt.Jwt;
+import com.example.hyena.jwt.JwtAuthenticationFilter;
 import com.example.hyena.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,12 +13,13 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.context.SecurityContextPersistenceFilter;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -26,7 +29,14 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
+    private JwtConfigure jwtConfigure;
+
     private UserService userService;
+
+    @Autowired
+    public void setJwtConfigure(JwtConfigure jwtConfigure) {
+        this.jwtConfigure = jwtConfigure;
+    }
 
     @Autowired
     public void setUserService(UserService userService) {
@@ -48,48 +58,13 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         return new BCryptPasswordEncoder();
     }
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .antMatchers("/me").hasAnyRole("USER", "ADMIN")
-                .antMatchers("/admin").access("hasRole('Admin') and isFullyAuthenticated()")
-                .anyRequest().permitAll()
-                .and()
-                .formLogin()
-                .defaultSuccessUrl("/")
-                .permitAll()
-                .and()
-
-                .httpBasic()
-                .and()
-
-                // 로그아웃 기능
-                .logout()
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout")) // default
-                .logoutSuccessUrl("/")
-                .invalidateHttpSession(true) // default
-                .clearAuthentication(true) // default
-                .and()
-
-                // 자동 로그인
-                .rememberMe()
-                .rememberMeParameter("remember-me")
-                .tokenValiditySeconds(300)
-                .and()
-
-                /**
-                 * HTTP 요청을 HTTPS 요청으로 리다이렉트 한다.
-                 */
-                .requiresChannel()
-                // 모두 https가 필요하다.
-                .anyRequest().requiresSecure()
-                .and()
-
-                /**
-                 * AccessDeniedHandler 추가
-                 */
-                .exceptionHandling()
-                .accessDeniedHandler(accessDeniedHandler());
+    @Bean
+    public Jwt jwt() {
+        return new Jwt(
+                jwtConfigure.getIssuer(),
+                jwtConfigure.getClientSecret(),
+                jwtConfigure.getExpirySeconds()
+        );
     }
 
     @Bean
@@ -104,5 +79,46 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
             response.getWriter().flush();
             response.getWriter().close();
         };
+    }
+
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        Jwt jwt = getApplicationContext().getBean(Jwt.class);
+        return new JwtAuthenticationFilter(jwtConfigure.getHeader(), jwt);
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/api/user/me").hasAnyRole("USER", "ADMIN")
+                .anyRequest().permitAll()
+                .and()
+                .csrf()
+                .disable()
+                .headers()
+                .disable()
+                .formLogin()
+                .disable()
+                .httpBasic()
+                .disable()
+
+                // 로그아웃 기능
+                .logout()
+                .disable()
+
+                // 자동 로그인
+                .rememberMe()
+                .disable()
+
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+
+                /**
+                 * AccessDeniedHandler 추가
+                 */
+                .exceptionHandling()
+                .accessDeniedHandler(accessDeniedHandler())
+                .and()
+                .addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class);
     }
 }
