@@ -2,7 +2,6 @@ package com.example.hyena.jwt;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -58,8 +57,8 @@ public class JwtAuthenticationFilter extends GenericFilterBean {
                     List<GrantedAuthority> authorities = getAuthorities(claims);
 
                     if (!username.isBlank() && authorities.size() > 0) {
-                        UsernamePasswordAuthenticationToken authentication
-                                = new UsernamePasswordAuthenticationToken(username, null, authorities);
+                        JwtAuthenticationToken authentication
+                                = new JwtAuthenticationToken(new JwtAuthentication(token, username), null, authorities);
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     }
