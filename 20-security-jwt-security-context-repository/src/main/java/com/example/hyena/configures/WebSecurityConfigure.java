@@ -3,6 +3,7 @@ package com.example.hyena.configures;
 import com.example.hyena.jwt.Jwt;
 import com.example.hyena.jwt.JwtAuthenticationFilter;
 import com.example.hyena.jwt.JwtAuthenticationProvider;
+import com.example.hyena.jwt.JwtSecurityContextRepository;
 import com.example.hyena.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.context.SecurityContextPersistenceFilter;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -91,6 +93,11 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         return new JwtAuthenticationFilter(jwtConfigure.getHeader(), jwt);
     }
 
+    public SecurityContextRepository securityContextRepository() {
+        Jwt jwt = getApplicationContext().getBean(Jwt.class);
+        return new JwtSecurityContextRepository(jwtConfigure.getHeader(), jwt);
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
@@ -124,6 +131,11 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .exceptionHandling()
                 .accessDeniedHandler(accessDeniedHandler())
                 .and()
+
+                .securityContext()
+                .securityContextRepository(securityContextRepository())
+                .and()
+
                 .addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class);
     }
 }
