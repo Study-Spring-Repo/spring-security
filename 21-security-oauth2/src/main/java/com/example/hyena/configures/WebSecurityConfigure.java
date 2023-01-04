@@ -2,16 +2,12 @@ package com.example.hyena.configures;
 
 import com.example.hyena.jwt.Jwt;
 import com.example.hyena.jwt.JwtAuthenticationFilter;
-import com.example.hyena.jwt.JwtAuthenticationProvider;
-import com.example.hyena.jwt.JwtSecurityContextRepository;
+import com.example.hyena.oauth2.OAuth2AuthenticationSuccessHandler;
 import com.example.hyena.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,11 +15,8 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.context.SecurityContextPersistenceFilter;
-import org.springframework.security.web.context.SecurityContextRepository;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -35,18 +28,16 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
     private final JwtConfigure jwtConfigure;
 
-    public WebSecurityConfigure(JwtConfigure jwtConfigure) {
+    private final UserService userService;
+
+    public WebSecurityConfigure(JwtConfigure jwtConfigure, UserService userService) {
         this.jwtConfigure = jwtConfigure;
+        this.userService = userService;
     }
 
     @Override
     public void configure(WebSecurity web) {
         web.ignoring().antMatchers("/assets/**", "/h2-console/**");
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 
     @Bean
@@ -72,30 +63,15 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         };
     }
 
-    @Bean
-    public JwtAuthenticationProvider jwtAuthenticationProvider(Jwt jwt, UserService userService) {
-        return new JwtAuthenticationProvider(jwt, userService);
-    }
-
-    @Autowired
-    public void configureAuthentication(AuthenticationManagerBuilder builder, JwtAuthenticationProvider provider) {
-        builder.authenticationProvider(provider);
-    }
-
-    @Bean
-    @Override
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
-    }
-
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         Jwt jwt = getApplicationContext().getBean(Jwt.class);
         return new JwtAuthenticationFilter(jwtConfigure.getHeader(), jwt);
     }
 
-    public SecurityContextRepository securityContextRepository() {
+    @Bean
+    public OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler() {
         Jwt jwt = getApplicationContext().getBean(Jwt.class);
-        return new JwtSecurityContextRepository(jwtConfigure.getHeader(), jwt);
+        return new OAuth2AuthenticationSuccessHandler(jwt, userService);
     }
 
     @Override
@@ -124,16 +100,15 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .sessionManagement()
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()
+                .oauth2Login()
+                .successHandler(oAuth2AuthenticationSuccessHandler())
+                .and()
 
                 /**
                  * AccessDeniedHandler 추가
                  */
                 .exceptionHandling()
                 .accessDeniedHandler(accessDeniedHandler())
-                .and()
-
-                .securityContext()
-                .securityContextRepository(securityContextRepository())
                 .and()
 
                 .addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class);
